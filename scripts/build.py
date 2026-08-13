@@ -11,11 +11,13 @@
 출력:   저장소 루트의 index.html
 """
 
+import gzip
 import html
 import os
 import re
 import sys
 import urllib.request
+import zlib
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from xml.etree import ElementTree as ET
@@ -24,8 +26,14 @@ KST = timezone(timedelta(hours=9))
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "index.html")
 
-UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-      "(KHTML, like Gecko) Chrome/125.0 Safari/537.36")
+# 일부 매체(데이터센터 IP)는 브라우저 UA를 차단, 일부는 피드리더 UA를 차단.
+# 순서대로 재시도한다.
+UA_LIST = [
+    ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+     "(KHTML, like Gecko) Chrome/125.0 Safari/537.36"),
+    "SME-Bio-Briefing/1.0 (+news aggregator; feedparser-compatible)",
+    "Mozilla/5.0 (compatible; Feedfetcher-Google; +http://www.google.com/feedfetcher.html)",
+]
 
 # ---------------------------------------------------------------------------
 # 1) 소스 (검증된 국내 경제지 RSS)
@@ -33,6 +41,22 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
 #    kind   = 표시용 섹션 이름
 # ---------------------------------------------------------------------------
 SOURCES = [
+    # 중소기업뉴스(중기중앙회 기관지) — 중기부·중소기업 정책 최핵심
+    {"outlet": "중소기업뉴스", "kind": "중소기업", "weight": 10,
+     "url": "https://www.kbiznews.co.kr/rss/allArticle.xml"},
+
+    # 벤처스퀘어 — 스타트업·벤처 투자/현장
+    {"outlet": "벤처스퀘어", "kind": "스타트업", "weight": 8,
+     "url": "https://www.venturesquare.net/feed"},
+
+    # 히트뉴스 — 제약·바이오 산업 전문지
+    {"outlet": "히트뉴스", "kind": "제약·바이오", "weight": 8,
+     "url": "https://www.hitnews.co.kr/rss/allArticle.xml"},
+
+    # 청년의사 — 의료·바이오
+    {"outlet": "청년의사", "kind": "의료·바이오", "weight": 5,
+     "url": "https://www.docdocdoc.co.kr/rss/allArticle.xml"},
+
     # 전자신문 — 중기/벤처·바이오 전용 피드 (담당 분야 핵심)
     {"outlet": "전자신문", "kind": "중기·벤처", "weight": 9,
      "url": "http://rss.etnews.com/22069.xml"},
@@ -68,6 +92,12 @@ SOURCES = [
      "url": "https://rss.etoday.co.kr/eto/industry_news.xml"},
     {"outlet": "이투데이", "kind": "경제",     "weight": 2,
      "url": "https://rss.etoday.co.kr/eto/economy_news.xml"},
+
+    # 매일경제 (best-effort — 데이터센터 차단 시 자동 스킵)
+    {"outlet": "매일경제", "kind": "경제",     "weight": 4,
+     "url": "https://www.mk.co.kr/rss/30800011/"},
+    {"outlet": "매일경제", "kind": "기업",     "weight": 4,
+     "url": "https://www.mk.co.kr/rss/50300009/"},
 ]
 
 # ---------------------------------------------------------------------------
@@ -123,15 +153,47 @@ def contains_any(text, words):
     return hits
 
 
-def fetch(url, timeout=20):
-    req = urllib.request.Request(url, headers={
-        "User-Agent": UA,
-        "Accept": "application/rss+xml, application/xml, text/xml, */*",
-        "Accept-Language": "ko-KR,ko;q=0.9",
-    })
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        raw = resp.read()
-    return raw
+def _decompress(data, encoding):
+    """gzip/deflate 응답 자동 해제. urllib은 자동 해제하지 않으므로 직접 처리.
+    (한국경제·전자신문이 클라우드에서 gzip으로 응답해 파싱이 0건 나던 문제 해결)"""
+    if not data:
+        return data
+    enc = (encoding or "").lower()
+    try:
+        if "gzip" in enc or data[:2] == b"\x1f\x8b":
+            return gzip.decompress(data)
+        if "deflate" in enc:
+            try:
+                return zlib.decompress(data)
+            except zlib.error:
+                return zlib.decompress(data, -zlib.MAX_WBITS)
+    except Exception:
+        return data
+    return data
+
+
+def fetch(url, timeout=25):
+    """여러 User-Agent로 재시도하고 gzip/deflate를 해제해 원문 bytes 반환."""
+    last_err = None
+    for ua in UA_LIST:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": ua,
+            "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
+            "Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8",
+            "Accept-Encoding": "gzip, deflate",
+            "Connection": "close",
+        })
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                raw = resp.read()
+                raw = _decompress(raw, resp.headers.get("Content-Encoding"))
+            if raw and (b"<item" in raw or b"<entry" in raw or b"<rss" in raw):
+                return raw
+            last_err = "no items in response"
+        except Exception as e:
+            last_err = e
+            continue
+    raise RuntimeError(last_err if last_err else "fetch failed")
 
 
 def parse_date(s):
@@ -166,17 +228,57 @@ def norm_title(t):
     return t.lower()
 
 
+def _decode_text(raw):
+    for enc in ("utf-8", "euc-kr", "cp949"):
+        try:
+            return raw.decode(enc)
+        except Exception:
+            continue
+    return raw.decode("utf-8", "ignore")
+
+
+def regex_parse(raw, source):
+    """ET 파싱이 실패한 깨진 XML/HTML 혼합 응답에서 item을 정규식으로 추출."""
+    text = _decode_text(raw)
+    items = []
+    blocks = re.findall(r"<item[\s>].*?</item>", text, re.S | re.I) or \
+        re.findall(r"<entry[\s>].*?</entry>", text, re.S | re.I)
+
+    def grab(tag, s):
+        m = re.search(rf"<{tag}[^>]*>(.*?)</{tag}>", s, re.S | re.I)
+        val = m.group(1) if m else ""
+        val = re.sub(r"<!\[CDATA\[(.*?)\]\]>", r"\1", val, flags=re.S)
+        return val.strip()
+
+    for b in blocks:
+        title = strip_tags(grab("title", b))
+        link = grab("link", b).strip()
+        if not link:  # Atom <link href="...">
+            m = re.search(r'<link[^>]*href="([^"]+)"', b, re.I)
+            link = m.group(1).strip() if m else ""
+        date_s = grab("pubDate", b) or grab("date", b) or \
+            grab("dc:date", b) or grab("updated", b) or grab("published", b)
+        desc = strip_tags(grab("description", b) or grab("summary", b))
+        if not title or not link:
+            continue
+        items.append({
+            "title": title, "link": link, "date": parse_date(date_s),
+            "desc": desc[:200], "outlet": source["outlet"],
+            "kind": source["kind"], "weight": source["weight"],
+        })
+    return items
+
+
 def parse_feed(raw, source):
-    """RSS 2.0 / Atom 양쪽 관용 파싱."""
+    """RSS 2.0 / Atom 양쪽 관용 파싱. 실패 시 정규식 폴백."""
     items = []
     try:
         root = ET.fromstring(raw)
     except Exception:
-        # 인코딩 이슈 대비: bytes 그대로 재시도 실패 시 포기
         try:
-            root = ET.fromstring(raw.decode("utf-8", "ignore"))
+            root = ET.fromstring(_decode_text(raw))
         except Exception:
-            return items
+            return regex_parse(raw, source)
 
     # RSS
     nodes = root.findall(".//item")
@@ -186,6 +288,9 @@ def parse_feed(raw, source):
         ns = "{http://www.w3.org/2005/Atom}"
         nodes = root.findall(f".//{ns}entry")
         is_atom = True
+    if not nodes:
+        # 네임스페이스가 특이해 못 찾은 경우 정규식 폴백
+        return regex_parse(raw, source)
 
     for n in nodes:
         if is_atom:

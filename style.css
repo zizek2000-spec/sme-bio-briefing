@@ -1,0 +1,265 @@
+/* =========================================================
+   중기부·바이오 데스크 브리핑 — 공통 스타일 (단일 소스)
+   build.py 가 생성하는 index.html 과 초기 index.html 이 공유
+   ========================================================= */
+
+:root {
+  --paper: #faf8f3;
+  --paper-2: #ffffff;
+  --ink: #1a1712;
+  --ink-2: #4a453c;
+  --ink-3: #8a8175;
+  --line: #e4ded2;
+  --line-2: #d6cfc0;
+  --accent: #b3241f;      /* 신문 붉은 헤드 */
+  --accent-ink: #b3241f;
+  --link: #12325b;
+  --shadow: 0 1px 2px rgba(30, 25, 15, .05), 0 8px 24px rgba(30, 25, 15, .04);
+
+  --scoop: #b3241f;
+  --policy: #1f5fb3;
+  --sme: #157347;
+  --venture: #6b3fb3;
+  --bio: #0f8a86;
+  --front: #6b6459;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14110d;
+    --paper-2: #1c1813;
+    --ink: #f2ede3;
+    --ink-2: #c4bcac;
+    --ink-3: #928a7b;
+    --line: #322c22;
+    --line-2: #3f382c;
+    --accent: #e0554f;
+    --accent-ink: #e8746e;
+    --link: #8fb4e8;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    --scoop: #e0554f;
+    --policy: #6ea3e6;
+    --sme: #4cba85;
+    --venture: #a985e6;
+    --bio: #4bc4bf;
+    --front: #a49b8c;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ---------- Masthead ---------- */
+.masthead {
+  border-bottom: 3px double var(--line-2);
+  background: var(--paper);
+}
+.masthead-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px 20px 18px;
+}
+.kicker {
+  font-size: 12px;
+  letter-spacing: .22em;
+  color: var(--accent-ink);
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.brand {
+  font-family: "Noto Serif KR", "Nanum Myeongjo", Georgia, "Times New Roman", serif;
+  font-weight: 800;
+  font-size: clamp(28px, 5vw, 46px);
+  letter-spacing: -.01em;
+  line-height: 1.1;
+  margin: 0;
+}
+.tagline {
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 14px;
+}
+.meta {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.meta strong { color: var(--ink-2); font-weight: 600; }
+.meta .dot { color: var(--accent-ink); }
+
+/* ---------- Layout ---------- */
+main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 8px 20px 40px;
+}
+
+.block { margin-top: 34px; }
+.block-title {
+  font-family: "Noto Serif KR", "Nanum Myeongjo", Georgia, serif;
+  font-size: 21px;
+  font-weight: 800;
+  margin: 0 0 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 8px;
+}
+.block-title .count {
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  color: var(--accent-ink);
+}
+.block-desc {
+  margin: 8px 0 16px;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+
+/* ---------- Must-read (TOP) ---------- */
+.mustread-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+}
+@media (max-width: 720px) { .mustread-list { grid-template-columns: 1fr; } }
+
+.mr-item {
+  display: flex;
+  gap: 14px;
+  padding: 15px 14px;
+  background: var(--paper-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  align-items: flex-start;
+  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+}
+.mr-item:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--line-2); }
+.mr-item.top3 { border-left: 4px solid var(--accent); }
+
+.rank {
+  font-family: "Noto Serif KR", Georgia, serif;
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink-3);
+  min-width: 34px;
+  text-align: center;
+  padding-top: 2px;
+}
+.mr-item.top3 .rank { color: var(--accent); }
+
+.mr-body { flex: 1; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.chip {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff;
+  white-space: nowrap;
+}
+.chip-scoop   { background: var(--scoop); }
+.chip-policy  { background: var(--policy); }
+.chip-sme     { background: var(--sme); }
+.chip-venture { background: var(--venture); }
+.chip-bio     { background: var(--bio); }
+.chip-front   { background: var(--front); }
+
+.mr-title {
+  display: block;
+  font-family: "Noto Serif KR", "Nanum Myeongjo", Georgia, serif;
+  font-size: 16.5px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--ink);
+  letter-spacing: -.005em;
+}
+.mr-title:hover { color: var(--accent-ink); text-decoration: none; }
+.mr-src {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.mr-src b { color: var(--ink-2); font-weight: 600; }
+
+/* ---------- Section article lists ---------- */
+.cols {
+  columns: 2;
+  column-gap: 34px;
+}
+@media (max-width: 720px) { .cols { columns: 1; } }
+
+.art-list { list-style: none; margin: 0; padding: 0; }
+.art-item {
+  break-inside: avoid;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.art-item a {
+  font-family: "Noto Serif KR", "Nanum Myeongjo", Georgia, serif;
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.42;
+}
+.art-item a:hover { color: var(--accent-ink); text-decoration: none; }
+.art-src {
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+.art-src .tag {
+  display: inline-block;
+  font-weight: 700;
+  color: var(--accent-ink);
+  margin-right: 6px;
+}
+
+.block-head-accent .block-title { border-bottom-color: var(--accent); }
+
+.empty { color: var(--ink-3); font-size: 13px; font-style: italic; padding: 8px 0; }
+
+/* ---------- Footer ---------- */
+footer {
+  border-top: 3px double var(--line-2);
+  margin-top: 40px;
+  background: var(--paper);
+}
+.footer-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 22px 20px 48px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.footer-inner h4 { color: var(--ink-2); font-size: 12px; margin: 0 0 8px; letter-spacing: .05em; }
+.src-list { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 16px; }
+.footer-note { line-height: 1.7; }
